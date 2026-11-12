@@ -1,0 +1,970 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lode Runner — Ретро Игра</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0a0c10;
+      color: #f1f5f9;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .cabinet {
+      width: 100%;
+      max-width: 800px;
+      background: #141821;
+      border: 1px solid #262d3d;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #0f1219;
+      border-bottom: 1px solid #262d3d;
+      flex-wrap: wrap;
+    }
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #fbbf24;
+      font-size: 18px;
+    }
+    .levels-nav {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: #1a202c;
+      color: #e2e8f0;
+      border: 1px solid #2d3648;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #252e3f; }
+    .btn.active {
+      background: rgba(245, 158, 11, 0.16);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+    .btn-primary {
+      background: #f59e0b;
+      color: #0a0c10;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-primary:hover { background: #fbbf24; }
+    .hud {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #10141c;
+      border-bottom: 1px solid #262d3d;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px;
+    }
+    .hud-group {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .hud-label { color: #94a3b8; margin-right: 4px; }
+    .val-score { color: #fbbf24; font-weight: 700; }
+    .val-lives { color: #fb7185; font-weight: 700; }
+    .val-gold { color: #fde68a; font-weight: 700; }
+    .val-exit { color: #38bdf8; font-weight: 700; }
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #000;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      outline: none;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 12, 16, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .overlay.hidden { display: none; }
+    .overlay h1, .overlay h2 {
+      margin: 0 0 8px;
+      color: #fbbf24;
+      font-size: 30px;
+      letter-spacing: 0.05em;
+    }
+    .overlay p {
+      margin: 0 0 20px;
+      color: #cbd5e1;
+      max-width: 440px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .footer {
+      padding: 10px 16px;
+      background: #10141c;
+      border-top: 1px solid #262d3d;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .touch-controls {
+      display: none;
+      width: 100%;
+      max-width: 800px;
+      margin-top: 12px;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+      touch-action: none;
+    }
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 48px);
+      gap: 6px;
+    }
+    .touch-btn {
+      height: 48px;
+      min-width: 48px;
+      background: #141821;
+      color: #f1f5f9;
+      border: 1px solid #2d3648;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .touch-btn:active { background: #334155; }
+    .dig-btn {
+      height: 54px;
+      padding: 0 16px;
+      background: #7f1d1d;
+      border-color: #b91c1c;
+    }
+    @media (max-width: 768px) {
+      .touch-controls { display: flex; }
+      .desktop-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cabinet">
+    <div class="topbar">
+      <div class="brand">LODE RUNNER</div>
+      <div class="levels-nav" id="levelsNav"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" id="muteBtn" type="button">Звук: ВКЛ</button>
+        <button class="btn" id="pauseBtn" type="button">Пауза</button>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="hud-group">
+        <div><span class="hud-label">СЧЁТ:</span><span class="val-score" id="scoreVal">0</span></div>
+        <div><span class="hud-label">РЕКОРД:</span><span id="highScoreVal">0</span></div>
+        <div><span class="hud-label">ЖИЗНИ:</span><span class="val-lives" id="livesVal">3</span></div>
+      </div>
+      <div class="hud-group">
+        <div><span class="hud-label">ЗОЛОТО:</span><span class="val-gold" id="goldVal">0/0</span></div>
+        <div><span class="hud-label">УРОВЕНЬ:</span><span id="levelVal">1/5</span></div>
+        <div class="val-exit" id="exitBanner" style="display:none;">ВЫХОД ОТКРЫТ</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <canvas id="gameCanvas" width="640" height="480" tabindex="0"></canvas>
+      <div class="overlay" id="overlay">
+        <h1 id="overlayTitle">LODE RUNNER</h1>
+        <p id="overlayText">Соберите всё золото на уровне, заманивайте стражников в выкопанные ямы и поднимитесь по открывшейся лестнице.</p>
+        <button class="btn-primary" id="overlayBtn" type="button">Начать игру</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div id="levelSubtitle">Классическая шахта</div>
+      <div class="desktop-hint">Стрелки / WASD — движение · Z / Q — копать влево · X / E — вправо · R — сброс</div>
+    </div>
+  </div>
+
+  <div class="touch-controls">
+    <div class="dpad">
+      <div></div>
+      <button class="touch-btn" data-key="up" type="button">▲</button>
+      <div></div>
+      <button class="touch-btn" data-key="left" type="button">◀</button>
+      <button class="touch-btn" data-key="down" type="button">▼</button>
+      <button class="touch-btn" data-key="right" type="button">▶</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="touch-btn dig-btn" data-key="digLeft" type="button">⛏ Влево</button>
+      <button class="touch-btn dig-btn" data-key="digRight" type="button">⛏ Вправо</button>
+    </div>
+  </div>
+
+  <script>
+    const TILE_SIZE = 32;
+    const COLS = 20;
+    const ROWS = 15;
+    const T = { EMPTY: 0, BRICK: 1, SOLID: 2, LADDER: 3, BAR: 4, GOLD: 5, ESCAPE: 6 };
+
+    const LEVELS = [
+      {
+        id: 1, name: 'Классическая шахта',
+        playerSpawn: { col: 10, row: 13 },
+        enemySpawns: [{ col: 2, row: 1 }, { col: 15, row: 5 }],
+        escapeLadders: [{ col: 18, row: 0 }],
+        grid: [
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+          [2,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,3,2],
+          [2,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,3,2],
+          [2,3,0,0,0,0,5,0,2,2,0,5,0,0,0,0,0,0,3,2],
+          [2,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,2],
+          [2,3,0,0,0,5,0,0,2,2,0,0,5,0,0,0,0,0,3,2],
+          [2,3,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,1,2],
+          [2,3,0,0,0,0,0,0,2,2,0,0,0,0,0,5,0,0,3,2],
+          [2,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,2],
+          [2,3,0,5,0,0,0,0,2,2,0,0,0,0,0,0,0,0,3,2],
+          [2,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1,1,3,2],
+          [2,3,0,0,0,0,0,0,2,2,0,0,0,0,5,0,0,0,3,2],
+          [2,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,2],
+          [2,3,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,3,2],
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+        ],
+      },
+      {
+        id: 2, name: 'Стальные перекладины',
+        playerSpawn: { col: 10, row: 13 },
+        enemySpawns: [{ col: 3, row: 5 }, { col: 16, row: 5 }, { col: 9, row: 1 }],
+        escapeLadders: [{ col: 9, row: 0 }, { col: 9, row: 1 }],
+        grid: [
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+          [2,0,0,5,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,2],
+          [2,1,1,1,1,1,3,1,1,1,1,1,1,3,1,1,1,1,1,2],
+          [2,0,0,0,0,0,3,0,0,5,5,0,0,3,0,0,0,0,0,2],
+          [2,4,4,4,4,4,3,4,4,4,4,4,4,3,4,4,4,4,4,2],
+          [2,0,5,0,0,0,3,0,0,0,0,0,0,3,0,0,0,5,0,2],
+          [2,1,1,1,1,3,1,1,1,2,2,1,1,1,3,1,1,1,1,2],
+          [2,0,0,0,0,3,0,0,0,0,0,0,0,0,3,0,0,0,0,2],
+          [2,0,0,5,0,3,0,4,4,4,4,4,4,0,3,0,5,0,0,2],
+          [2,1,1,1,1,3,1,1,0,0,0,0,1,1,3,1,1,1,1,2],
+          [2,3,0,0,0,3,0,0,0,5,0,0,0,0,3,0,0,0,3,2],
+          [2,3,4,4,4,3,4,1,1,1,1,1,1,4,3,4,4,4,3,2],
+          [2,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,2],
+          [2,3,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,3,2],
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+        ],
+      },
+      {
+        id: 3, name: 'Пирамида золота',
+        playerSpawn: { col: 2, row: 13 },
+        enemySpawns: [{ col: 17, row: 13 }, { col: 10, row: 7 }, { col: 9, row: 1 }],
+        escapeLadders: [{ col: 9, row: 0 }, { col: 9, row: 1 }],
+        grid: [
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+          [2,0,0,0,0,0,0,5,0,0,0,0,5,0,0,0,0,0,3,2],
+          [2,0,0,0,0,0,3,1,1,1,1,1,1,3,0,0,0,0,3,2],
+          [2,0,0,0,0,0,3,0,5,0,0,5,0,3,0,0,0,0,3,2],
+          [2,0,0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0,3,2],
+          [2,0,0,0,3,0,0,0,0,5,0,0,0,0,0,3,0,0,3,2],
+          [2,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,2],
+          [2,3,0,0,5,0,0,0,0,0,0,0,0,0,0,5,0,0,3,2],
+          [2,3,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,3,2],
+          [2,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,3,2],
+          [2,3,4,4,4,4,4,4,0,3,3,0,4,4,4,4,4,4,3,2],
+          [2,3,0,5,0,0,0,0,0,3,3,0,0,0,0,0,5,0,3,2],
+          [2,3,1,1,1,1,1,1,0,3,3,0,1,1,1,1,1,1,3,2],
+          [2,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,3,2],
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+        ],
+      },
+      {
+        id: 4, name: 'Башни-близнецы',
+        playerSpawn: { col: 8, row: 13 },
+        enemySpawns: [{ col: 3, row: 3 }, { col: 16, row: 3 }, { col: 3, row: 9 }, { col: 16, row: 9 }],
+        escapeLadders: [{ col: 9, row: 0 }, { col: 10, row: 0 }],
+        grid: [
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+          [2,5,0,0,0,5,0,0,0,3,3,0,0,0,5,0,0,0,5,2],
+          [2,1,1,1,1,1,1,3,0,3,3,0,3,1,1,1,1,1,1,2],
+          [2,0,0,0,0,0,0,3,0,3,3,0,3,0,0,0,0,0,0,2],
+          [2,1,1,1,1,1,0,3,4,3,3,4,3,0,1,1,1,1,1,2],
+          [2,3,0,5,0,0,0,3,0,3,3,0,3,0,0,0,5,0,3,2],
+          [2,3,1,1,1,1,1,1,0,3,3,0,1,1,1,1,1,1,3,2],
+          [2,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,3,2],
+          [2,3,4,4,4,4,4,4,4,3,3,4,4,4,4,4,4,4,3,2],
+          [2,3,0,0,0,5,0,0,0,3,3,0,0,0,5,0,0,0,3,2],
+          [2,1,1,1,1,1,1,1,0,3,3,0,1,1,1,1,1,1,1,2],
+          [2,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,3,2],
+          [2,3,1,1,1,1,3,1,0,3,3,0,1,3,1,1,1,1,3,2],
+          [2,3,5,0,0,0,3,0,0,3,3,0,0,3,0,0,0,5,3,2],
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+        ],
+      },
+      {
+        id: 5, name: 'Хранилище мастера',
+        playerSpawn: { col: 10, row: 13 },
+        enemySpawns: [{ col: 2, row: 1 }, { col: 17, row: 1 }, { col: 4, row: 7 }, { col: 15, row: 7 }],
+        escapeLadders: [{ col: 9, row: 0 }, { col: 9, row: 1 }, { col: 9, row: 2 }, { col: 9, row: 3 }],
+        grid: [
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+          [2,5,0,0,0,0,5,0,0,0,0,0,0,5,0,0,0,0,5,2],
+          [2,1,1,1,3,1,1,1,1,0,0,1,1,1,1,3,1,1,1,2],
+          [2,0,0,0,3,0,0,0,0,0,0,0,0,0,0,3,0,0,0,2],
+          [2,4,4,4,3,4,4,4,4,4,4,4,4,4,4,3,4,4,4,2],
+          [2,0,5,0,3,0,0,5,0,0,0,0,5,0,0,3,0,5,0,2],
+          [2,1,1,1,1,1,3,1,1,2,2,1,1,3,1,1,1,1,1,2],
+          [2,3,0,0,0,0,3,0,0,0,0,0,0,3,0,0,0,0,3,2],
+          [2,3,1,1,1,1,3,1,1,1,1,1,1,3,1,1,1,1,3,2],
+          [2,3,0,0,5,0,0,0,0,3,3,0,0,0,0,5,0,0,3,2],
+          [2,3,4,4,4,4,4,4,0,3,3,0,4,4,4,4,4,4,3,2],
+          [2,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,3,2],
+          [2,1,1,1,1,1,1,3,1,3,3,1,3,1,1,1,1,1,1,2],
+          [2,5,0,0,0,0,0,3,0,3,3,0,3,0,0,0,0,0,5,2],
+          [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+        ],
+      },
+    ];
+
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.lastStep = 0;
+      }
+      unlock() {
+        if (this.muted) return;
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!this.ctx && AudioCtx) this.ctx = new AudioCtx();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      }
+      tone(f1, f2, dur, type = 'square', vol = 0.13, delay = 0) {
+        if (this.muted) return;
+        this.unlock();
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime + delay;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(f1, t);
+        if (f2 !== f1) osc.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.01);
+      }
+      start() { this.tone(330, 330, 0.08); this.tone(440, 440, 0.08, 'square', 0.13, 0.08); this.tone(659, 659, 0.16, 'square', 0.14, 0.16); }
+      climb() { const n = performance.now(); if (n - this.lastStep < 140) return; this.lastStep = n; this.tone(260, 340, 0.04, 'triangle', 0.08); }
+      step() { const n = performance.now(); if (n - this.lastStep < 160) return; this.lastStep = n; this.tone(150, 110, 0.03, 'triangle', 0.05); }
+      dig() { this.tone(520, 120, 0.15, 'sawtooth', 0.14); }
+      gold() { this.tone(660, 660, 0.07); this.tone(880, 1046, 0.15, 'square', 0.14, 0.06); }
+      trap() { this.tone(320, 140, 0.16, 'triangle', 0.15); }
+      crush() { this.tone(240, 520, 0.12); this.tone(520, 780, 0.14, 'square', 0.14, 0.08); }
+      reveal() { [440, 554, 659, 880].forEach((f, i) => this.tone(f, f, 0.11, 'square', 0.13, i * 0.07)); }
+      win() { [523, 659, 784, 1046, 1046].forEach((f, i) => this.tone(f, f, 0.14, 'square', 0.14, i * 0.1)); }
+      death() { this.tone(380, 110, 0.35, 'sawtooth', 0.15); }
+    }
+
+    const sfx = new SoundEngine();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const input = { left: false, right: false, up: false, down: false, digLeft: false, digRight: false };
+
+    let score = 0;
+    let highScore = Number(localStorage.getItem('lode_runner_hs') || 0);
+    let lives = 3;
+    let levelIdx = 0;
+    let status = 'TITLE';
+    let grid = [];
+    let runner = {};
+    let guards = [];
+    let holes = [];
+    let particles = [];
+    let beams = [];
+    let goldTotal = 0;
+    let escapeRevealed = false;
+    let freezeTimer = 0;
+
+    function getTile(c, r) {
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return T.SOLID;
+      return grid[r][c];
+    }
+    const isSolid = (c, r) => { const t = getTile(c, r); return t === T.BRICK || t === T.SOLID; };
+    const isLadder = (c, r) => { const t = getTile(c, r); return t === T.LADDER || t === T.ESCAPE; };
+    const isBar = (c, r) => getTile(c, r) === T.BAR;
+    const isHole = (c, r) => holes.some(h => h.col === c && h.row === r);
+    const hasTrapped = (c, r) => guards.some(g => g.trapped > 0 && g.trapCol === c && g.trapRow === r);
+    const isFloor = (c, r) => isSolid(c, r) || isLadder(c, r) || hasTrapped(c, r);
+
+    function spawnParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 35 + Math.random() * 100;
+        particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, life: 0.45, max: 0.45, color });
+      }
+    }
+
+    function loadLevel(idx, playNow = true) {
+      levelIdx = idx;
+      const def = LEVELS[idx];
+      grid = def.grid.map(r => [...r]);
+      holes = [];
+      particles = [];
+      beams = [];
+      escapeRevealed = false;
+      freezeTimer = 0.2;
+      goldTotal = 0;
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (grid[r][c] === T.GOLD) goldTotal++;
+
+      runner = {
+        x: def.playerSpawn.col * TILE_SIZE,
+        y: def.playerSpawn.row * TILE_SIZE,
+        facing: 'right',
+        falling: false, climbing: false, onBar: false,
+        anim: 0, digCd: 0
+      };
+      guards = def.enemySpawns.map((s, id) => ({
+        id, x: s.col * TILE_SIZE, y: s.row * TILE_SIZE,
+        facing: id % 2 ? 'left' : 'right',
+        falling: false, climbing: false, onBar: false,
+        trapped: 0, trapCol: 0, trapRow: 0,
+        hasGold: false, dropCd: 0, anim: 0, respawn: 0
+      }));
+
+      status = playNow ? 'PLAYING' : 'TITLE';
+      syncUI();
+    }
+
+    function syncUI() {
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('lode_runner_hs', String(highScore));
+      }
+      let remaining = 0;
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (grid[r][c] === T.GOLD) remaining++;
+      remaining += guards.filter(g => g.hasGold).length;
+
+      document.getElementById('scoreVal').textContent = score;
+      document.getElementById('highScoreVal').textContent = highScore;
+      document.getElementById('livesVal').textContent = lives;
+      document.getElementById('goldVal').textContent = `${Math.max(0, goldTotal - remaining)}/${goldTotal}`;
+      document.getElementById('levelVal').textContent = `${levelIdx + 1}/${LEVELS.length}`;
+      document.getElementById('levelSubtitle').textContent = LEVELS[levelIdx].name;
+      document.getElementById('exitBanner').style.display = escapeRevealed ? 'block' : 'none';
+
+      const ov = document.getElementById('overlay');
+      const title = document.getElementById('overlayTitle');
+      const text = document.getElementById('overlayText');
+      const btn = document.getElementById('overlayBtn');
+
+      document.querySelectorAll('#levelsNav button').forEach((b, i) => {
+        b.classList.toggle('active', i === levelIdx && status !== 'TITLE');
+      });
+
+      if (status === 'PLAYING') {
+        ov.classList.add('hidden');
+      } else {
+        ov.classList.remove('hidden');
+        if (status === 'TITLE') {
+          title.textContent = 'LODE RUNNER';
+          text.textContent = 'Соберите всё золото, копайте ямы для стражников (Z / X) и поднимитесь по открывшейся лестнице.';
+          btn.textContent = 'Начать игру';
+        } else if (status === 'PAUSED') {
+          title.textContent = 'ПАУЗА';
+          text.textContent = `Уровень ${levelIdx + 1}: ${LEVELS[levelIdx].name}`;
+          btn.textContent = 'Продолжить';
+        } else if (status === 'CLEAR') {
+          title.textContent = 'УРОВЕНЬ ПРОЙДЕН!';
+          text.textContent = `Бонус +500. Текущий счёт: ${score}`;
+          btn.textContent = 'Следующий уровень';
+        } else if (status === 'OVER') {
+          title.textContent = 'ИГРА ОКОНЧЕНА';
+          text.textContent = `Итоговый счёт: ${score} · Рекорд: ${highScore}`;
+          btn.textContent = 'Играть снова';
+        } else if (status === 'VICTORY') {
+          title.textContent = 'ПОБЕДА!';
+          text.textContent = `Все 5 уровней пройдены! Итоговый счёт: ${score}`;
+          btn.textContent = 'Играть снова';
+        }
+      }
+    }
+
+    function collectGold() {
+      const minC = Math.max(0, Math.floor((runner.x + 6) / TILE_SIZE));
+      const maxC = Math.min(COLS - 1, Math.floor((runner.x + TILE_SIZE - 6) / TILE_SIZE));
+      const minR = Math.max(0, Math.floor((runner.y + 6) / TILE_SIZE));
+      const maxR = Math.min(ROWS - 1, Math.floor((runner.y + TILE_SIZE - 6) / TILE_SIZE));
+      let got = false;
+      for (let r = minR; r <= maxR; r++) {
+        for (let c = minC; c <= maxC; c++) {
+          if (getTile(c, r) === T.GOLD) {
+            grid[r][c] = T.EMPTY;
+            score += 100;
+            sfx.gold();
+            spawnParticles(c * TILE_SIZE + 16, r * TILE_SIZE + 16, '#fbbf24', 10);
+            got = true;
+          }
+        }
+      }
+      if (got) syncUI();
+    }
+
+    function dropGuardGold(g, col, row) {
+      const pts = [[col, row], [col - 1, row], [col + 1, row], [col, row - 1]];
+      for (const [c, r] of pts) {
+        if (c >= 1 && c < COLS - 1 && r >= 1 && r < ROWS - 1 && getTile(c, r) === T.EMPTY) {
+          grid[r][c] = T.GOLD;
+          g.hasGold = false;
+          return;
+        }
+      }
+    }
+
+    function runnerDie() {
+      sfx.death();
+      lives = Math.max(0, lives - 1);
+      if (lives <= 0) {
+        status = 'OVER';
+        syncUI();
+      } else {
+        loadLevel(levelIdx, true);
+      }
+    }
+
+    function update(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+        else { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; }
+      }
+      for (let i = beams.length - 1; i >= 0; i--) {
+        beams[i].t -= dt;
+        if (beams[i].t <= 0) beams.splice(i, 1);
+      }
+      if (status !== 'PLAYING') return;
+      if (freezeTimer > 0) { freezeTimer -= dt; return; }
+
+      for (let i = holes.length - 1; i >= 0; i--) {
+        const h = holes[i];
+        h.t -= dt;
+        if (h.t <= 0) {
+          holes.splice(i, 1);
+          grid[h.row][h.col] = T.BRICK;
+          for (const g of guards) {
+            const gc = Math.floor((g.x + 16) / TILE_SIZE);
+            const gr = Math.floor((g.y + 16) / TILE_SIZE);
+            if (gc === h.col && gr === h.row && g.respawn <= 0) {
+              score += g.hasGold ? 175 : 75;
+              g.hasGold = false;
+              g.trapped = 0;
+              g.respawn = 0.7;
+              sfx.crush();
+              const spots = [];
+              for (let c = 1; c < COLS - 1; c++) if (grid[1][c] === T.EMPTY) spots.push(c);
+              const sc = spots[Math.floor(Math.random() * spots.length)] || 2;
+              g.x = sc * TILE_SIZE;
+              g.y = TILE_SIZE;
+              syncUI();
+            }
+          }
+          const rc = Math.floor((runner.x + 16) / TILE_SIZE);
+          const rr = Math.floor((runner.y + 16) / TILE_SIZE);
+          if (rc === h.col && rr === h.row) { runnerDie(); return; }
+        }
+      }
+
+      if (runner.digCd > 0) runner.digCd -= dt;
+      const col = Math.floor((runner.x + 16) / TILE_SIZE);
+      const row = Math.floor((runner.y + 16) / TILE_SIZE);
+      const rowY = row * TILE_SIZE;
+
+      let lCol = col;
+      let onLad = isLadder(col, row);
+      let ladBelow = isLadder(col, row + 1);
+      if (!onLad && !ladBelow && (input.up || input.down)) {
+        const la = Math.floor((runner.x + 2) / TILE_SIZE);
+        const ra = Math.floor((runner.x + TILE_SIZE - 2) / TILE_SIZE);
+        if (isLadder(la, row) || (input.down && isLadder(la, row + 1))) {
+          lCol = la; onLad = isLadder(la, row); ladBelow = isLadder(la, row + 1);
+        } else if (isLadder(ra, row) || (input.down && isLadder(ra, row + 1))) {
+          lCol = ra; onLad = isLadder(ra, row); ladBelow = isLadder(ra, row + 1);
+        }
+      }
+      const onBar = isBar(col, row) && Math.abs(runner.y - rowY) <= 8;
+      const lf = Math.floor((runner.x + 10) / TILE_SIZE);
+      const rf = Math.floor((runner.x + TILE_SIZE - 10) / TILE_SIZE);
+      const hasFoot = Math.abs(runner.y - rowY) <= 4 && (isFloor(lf, row + 1) || isFloor(rf, row + 1));
+
+      if (!(onLad || (onBar && !input.down) || hasFoot)) {
+        runner.falling = true;
+        runner.climbing = false;
+        runner.onBar = false;
+        const dx = col * TILE_SIZE - runner.x;
+        if (Math.abs(dx) < 10) runner.x += dx * Math.min(1, dt * 16);
+        runner.y += 230 * dt;
+        const nr = Math.floor((runner.y + 16) / TILE_SIZE);
+        const nfr = Math.floor((runner.y + TILE_SIZE - 1) / TILE_SIZE);
+        const llf = Math.floor((runner.x + 10) / TILE_SIZE);
+        const lrf = Math.floor((runner.x + TILE_SIZE - 10) / TILE_SIZE);
+        if ((isFloor(llf, nfr) || isFloor(lrf, nfr)) && nfr > row) {
+          runner.y = (nfr - 1) * TILE_SIZE; runner.falling = false;
+        } else if (isBar(col, nr) && !input.down && runner.y >= nr * TILE_SIZE - 3) {
+          runner.y = nr * TILE_SIZE; runner.falling = false; runner.onBar = true;
+        } else if (isLadder(col, nr) && runner.y >= nr * TILE_SIZE - 2) {
+          runner.y = nr * TILE_SIZE; runner.falling = false; runner.climbing = true;
+        }
+        collectGold();
+      } else {
+        runner.falling = false;
+        runner.onBar = onBar;
+
+        if (!onBar && runner.digCd <= 0 && (input.digLeft || input.digRight)) {
+          const dir = input.digLeft ? -1 : 1;
+          runner.facing = dir < 0 ? 'left' : 'right';
+          const tc = col + dir, tr = row + 1, above = getTile(tc, row);
+          if (getTile(tc, tr) === T.BRICK && (above === T.EMPTY || above === T.BAR)) {
+            grid[tr][tc] = T.EMPTY;
+            holes.push({ col: tc, row: tr, t: 5.5 });
+            runner.digCd = 0.24;
+            sfx.dig();
+            beams.push({ x1: runner.x + 16 + dir * 10, y1: runner.y + 18, x2: tc * TILE_SIZE + 16, y2: tr * TILE_SIZE + 16, t: 0.16 });
+            spawnParticles(tc * TILE_SIZE + 16, tr * TILE_SIZE + 8, '#c2593f', 10);
+          }
+        }
+
+        let movedV = false;
+        if (input.up && (onLad || (onBar && isLadder(col, row - 1)))) {
+          const tc = onLad ? lCol : col;
+          runner.x += (tc * TILE_SIZE - runner.x) * Math.min(1, dt * 20);
+          const ny = runner.y - 118 * dt;
+          if (escapeRevealed && ny <= 4 && isLadder(tc, 0)) {
+            score += 500;
+            sfx.win();
+            status = levelIdx >= LEVELS.length - 1 ? 'VICTORY' : 'CLEAR';
+            syncUI();
+            return;
+          }
+          if (!isSolid(tc, Math.floor((ny + 2) / TILE_SIZE))) {
+            runner.y = Math.max(0, ny);
+            runner.climbing = true;
+            runner.anim += dt * 10;
+            movedV = true;
+            sfx.climb();
+          }
+        } else if (input.down && (onLad || ladBelow || onBar)) {
+          if (onBar && !onLad && !ladBelow) {
+            runner.y += 10; runner.onBar = false; runner.falling = true;
+          } else {
+            runner.x += (lCol * TILE_SIZE - runner.x) * Math.min(1, dt * 20);
+            const ny = runner.y + 118 * dt;
+            const fr = Math.floor((ny + TILE_SIZE - 1) / TILE_SIZE);
+            if (!isSolid(lCol, fr) && !hasTrapped(lCol, fr)) {
+              runner.y = ny; runner.climbing = true; runner.anim += dt * 10; movedV = true; sfx.climb();
+            } else {
+              runner.y = (fr - 1) * TILE_SIZE;
+            }
+          }
+        }
+
+        if (!movedV && (input.left || input.right)) {
+          const dir = input.left ? -1 : 1;
+          runner.facing = dir < 0 ? 'left' : 'right';
+          const nx = runner.x + dir * 148 * dt;
+          const ec = dir < 0 ? Math.floor((nx + 4) / TILE_SIZE) : Math.floor((nx + TILE_SIZE - 4) / TILE_SIZE);
+          if (Math.abs(runner.y - rowY) <= 12 && !isSolid(ec, row)) runner.y = rowY;
+          const rt = Math.floor((runner.y + 5) / TILE_SIZE);
+          const rb = Math.floor((runner.y + TILE_SIZE - 5) / TILE_SIZE);
+          if (!isSolid(ec, rt) && !isSolid(ec, rb)) {
+            runner.x = nx; runner.climbing = false; runner.anim += dt * 12; sfx.step();
+          } else {
+            runner.x = dir < 0 ? (ec + 1) * TILE_SIZE : (ec - 1) * TILE_SIZE;
+          }
+        } else if (!movedV && !onLad && Math.abs(runner.y - rowY) < 6) {
+          runner.y = rowY;
+        }
+        collectGold();
+      }
+
+      const rCol = Math.floor((runner.x + 16) / TILE_SIZE);
+      const rRow = Math.floor((runner.y + 16) / TILE_SIZE);
+      for (const g of guards) {
+        if (g.respawn > 0) { g.respawn -= dt; continue; }
+        const gc = Math.floor((g.x + 16) / TILE_SIZE);
+        const gr = Math.floor((g.y + 16) / TILE_SIZE);
+        if (g.trapped > 0) {
+          g.trapped -= dt;
+          g.x = g.trapCol * TILE_SIZE; g.y = g.trapRow * TILE_SIZE;
+          if (g.trapped <= 0 && !isSolid(g.trapCol, g.trapRow - 1)) {
+            g.y = (g.trapRow - 1) * TILE_SIZE;
+            const sc = g.trapCol + (rCol < g.trapCol ? -1 : 1);
+            if (!isSolid(sc, g.trapRow - 1)) g.x = sc * TILE_SIZE;
+          }
+          continue;
+        }
+        if (isHole(gc, gr) && !hasTrapped(gc, gr)) {
+          g.x = gc * TILE_SIZE; g.y = gr * TILE_SIZE;
+          g.trapped = 3.4; g.trapCol = gc; g.trapRow = gr;
+          score += 25; sfx.trap();
+          if (g.hasGold) dropGuardGold(g, gc, gr - 1);
+          syncUI();
+          continue;
+        }
+        if (!g.hasGold && getTile(gc, gr) === T.GOLD && Math.random() < 0.06) {
+          grid[gr][gc] = T.EMPTY; g.hasGold = true; g.dropCd = 2.5 + Math.random() * 2.5;
+        } else if (g.hasGold) {
+          g.dropCd -= dt;
+          if (g.dropCd <= 0 && getTile(gc, gr) === T.EMPTY && isSolid(gc, gr + 1)) {
+            grid[gr][gc] = T.GOLD; g.hasGold = false;
+          }
+        }
+        const gLad = isLadder(gc, gr), gLadB = isLadder(gc, gr + 1);
+        const gBar = isBar(gc, gr) && Math.abs(g.y - gr * TILE_SIZE) <= 6;
+        const dropBar = gBar && rRow > gr && Math.abs(gc - rCol) <= 1;
+        const gSup = gLad || (gBar && !dropBar) || (Math.abs(g.y - gr * TILE_SIZE) <= 4 && isFloor(gc, gr + 1));
+        if (!gSup) {
+          g.x += (gc * TILE_SIZE - g.x) * Math.min(1, dt * 14);
+          g.y += 195 * dt;
+          const nr = Math.floor((g.y + 16) / TILE_SIZE);
+          const nfr = Math.floor((g.y + TILE_SIZE - 1) / TILE_SIZE);
+          if (isHole(gc, nr) && !hasTrapped(gc, nr)) {
+            g.x = gc * TILE_SIZE; g.y = nr * TILE_SIZE; g.trapped = 3.4; g.trapCol = gc; g.trapRow = nr;
+            score += 25; sfx.trap();
+            if (g.hasGold) dropGuardGold(g, gc, nr - 1);
+            syncUI();
+          } else if (isFloor(gc, nfr) && nfr > gr) g.y = (nfr - 1) * TILE_SIZE;
+          else if (isBar(gc, nr) && !dropBar && g.y >= nr * TILE_SIZE - 3) g.y = nr * TILE_SIZE;
+          else if (isLadder(gc, nr) && g.y >= nr * TILE_SIZE - 2) g.y = nr * TILE_SIZE;
+          continue;
+        }
+
+        let mx = 0, my = 0;
+        if (rRow < gr && gLad && !isSolid(gc, gr - 1)) my = -1;
+        else if (rRow > gr && (gLad || gLadB) && !isSolid(gc, gr + 1)) my = 1;
+        else if (rRow !== gr) {
+          let best = null, bd = 999;
+          for (let c = 1; c < COLS - 1; c++) {
+            const ok = rRow < gr ? isLadder(c, gr) : (isLadder(c, gr) || isLadder(c, gr + 1));
+            if (!ok) continue;
+            let blk = false;
+            for (let x = Math.min(gc, c); x <= Math.max(gc, c); x++) if (isSolid(x, gr)) { blk = true; break; }
+            if (!blk && Math.abs(c - gc) < bd) { bd = Math.abs(c - gc); best = c; }
+          }
+          if (best !== null) mx = best < gc ? -1 : best > gc ? 1 : 0;
+          else mx = rCol < gc ? -1 : rCol > gc ? 1 : 0;
+        } else mx = rCol < gc ? -1 : rCol > gc ? 1 : 0;
+
+        if (my !== 0) {
+          g.x += (gc * TILE_SIZE - g.x) * Math.min(1, dt * 16);
+          const ny = g.y + my * 77 * dt;
+          const tr = my < 0 ? Math.floor((ny + 2) / TILE_SIZE) : Math.floor((ny + TILE_SIZE - 1) / TILE_SIZE);
+          if (!isSolid(gc, tr)) { g.y = ny; g.anim += dt * 8; }
+        } else if (mx !== 0) {
+          if (Math.abs(g.y - gr * TILE_SIZE) < 8) g.y += (gr * TILE_SIZE - g.y) * Math.min(1, dt * 14);
+          g.facing = mx < 0 ? 'left' : 'right';
+          const nx = g.x + mx * 86 * dt;
+          const ec = mx < 0 ? Math.floor((nx + 4) / TILE_SIZE) : Math.floor((nx + TILE_SIZE - 4) / TILE_SIZE);
+          if (!isSolid(ec, gr)) { g.x = nx; g.anim += dt * 9; }
+        }
+      }
+
+      let rem = guards.filter(g => g.hasGold).length;
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (grid[r][c] === T.GOLD) rem++;
+      if (rem === 0 && !escapeRevealed) {
+        escapeRevealed = true;
+        for (const p of LEVELS[levelIdx].escapeLadders) grid[p.row][p.col] = T.ESCAPE;
+        sfx.reveal();
+        syncUI();
+      }
+
+      for (const g of guards) {
+        if (g.trapped > 0 || g.respawn > 0) continue;
+        if (Math.abs(runner.x - g.x) < 19 && Math.abs(runner.y - g.y) < 22) { runnerDie(); return; }
+      }
+    }
+
+    function draw(nowSec) {
+      ctx.fillStyle = '#07090d';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const t = grid[r][c], x = c * TILE_SIZE, y = r * TILE_SIZE;
+          if (t === T.BRICK) {
+            ctx.fillStyle = '#9c3d28'; ctx.fillRect(x, y, 32, 32);
+            ctx.fillStyle = '#c2593f'; ctx.fillRect(x, y, 32, 2);
+            ctx.fillStyle = '#1b1110';
+            ctx.fillRect(x, y + 15, 32, 2); ctx.fillRect(x, y + 30, 32, 2);
+            ctx.fillRect(x + 15, y + 2, 2, 13); ctx.fillRect(x + 7, y + 17, 2, 13); ctx.fillRect(x + 23, y + 17, 2, 13);
+          } else if (t === T.SOLID) {
+            ctx.fillStyle = '#334155'; ctx.fillRect(x, y, 32, 32);
+            ctx.fillStyle = '#475569'; ctx.fillRect(x + 1, y + 1, 30, 3);
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(x + 5, y + 5, 3, 3); ctx.fillRect(x + 24, y + 5, 3, 3);
+          } else if (t === T.LADDER || t === T.ESCAPE) {
+            const esc = t === T.ESCAPE;
+            const pulse = esc ? 0.65 + 0.35 * Math.sin(nowSec * 6) : 1;
+            ctx.fillStyle = esc ? `rgba(56,189,248,${pulse})` : '#d97706';
+            ctx.fillRect(x + 5, y, 4, 32); ctx.fillRect(x + 23, y, 4, 32);
+            ctx.fillStyle = esc ? `rgba(186,230,253,${pulse})` : '#fbbf24';
+            for (let ry = 4; ry < 32; ry += 8) ctx.fillRect(x + 9, y + ry, 14, 3);
+          } else if (t === T.BAR) {
+            ctx.fillStyle = '#94a3b8'; ctx.fillRect(x, y + 5, 32, 4);
+            ctx.fillStyle = '#e2e8f0'; ctx.fillRect(x, y + 5, 32, 1.5);
+          } else if (t === T.GOLD) {
+            const bob = Math.sin(nowSec * 3.5 + c * 0.4) * 1.5;
+            ctx.fillStyle = '#b45309'; ctx.fillRect(x + 6, y + 15 + bob, 20, 12);
+            ctx.fillStyle = '#f59e0b'; ctx.fillRect(x + 8, y + 12 + bob, 16, 12);
+            ctx.fillStyle = '#fde68a'; ctx.fillRect(x + 10, y + 13 + bob, 12, 4);
+          }
+        }
+      }
+
+      for (const h of holes) {
+        if (h.t < 1.4) {
+          ctx.fillStyle = `rgba(194,89,63,${0.25 + (Math.sin(nowSec * 22) * 0.5 + 0.5) * 0.35})`;
+          ctx.fillRect(h.col * 32 + 2, h.row * 32 + 2, 28, 28);
+        }
+      }
+      for (const b of beams) {
+        ctx.strokeStyle = `rgba(251,191,36,${b.t / 0.16})`; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+      }
+      for (const g of guards) {
+        if (g.respawn > 0) continue;
+        const x = Math.round(g.x), y = Math.round(g.y);
+        ctx.fillStyle = g.trapped > 0 ? '#f97316' : '#dc2626'; ctx.fillRect(x + 10, y + 2, 12, 9);
+        ctx.fillStyle = '#fff'; ctx.fillRect(g.facing === 'right' ? x + 16 : x + 11, y + 5, 5, 3);
+        if (g.hasGold) { ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + 12, y - 4, 8, 5); }
+        ctx.fillStyle = '#991b1b'; ctx.fillRect(x + 10, y + 11, 12, 11);
+        const s = g.trapped > 0 ? 0 : Math.sin(g.anim) * 2.5;
+        ctx.fillStyle = '#7f1d1d'; ctx.fillRect(x + 11 + s, y + 22, 4, 9); ctx.fillRect(x + 17 - s, y + 22, 4, 9);
+      }
+      {
+        const x = Math.round(runner.x), y = Math.round(runner.y);
+        const s = Math.sin(runner.anim) * 3;
+        ctx.fillStyle = '#38bdf8'; ctx.fillRect(x + 10, y + 2, 12, 9);
+        ctx.fillStyle = '#fef08a'; ctx.fillRect(runner.facing === 'right' ? x + 16 : x + 11, y + 5, 5, 3);
+        ctx.fillStyle = '#e2e8f0'; ctx.fillRect(x + 11, y + 11, 10, 11);
+        ctx.fillStyle = '#1d4ed8'; ctx.fillRect(x + 11 + s, y + 22, 4, 9); ctx.fillRect(x + 17 - s, y + 22, 4, 9);
+      }
+      for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life / p.max);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    const nav = document.getElementById('levelsNav');
+    LEVELS.forEach((l, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn';
+      b.textContent = `Ур. ${l.id}`;
+      b.onclick = () => { score = 0; lives = 3; sfx.start(); loadLevel(i, true); canvas.focus(); };
+      nav.appendChild(b);
+    });
+
+    document.getElementById('muteBtn').onclick = (e) => {
+      sfx.muted = !sfx.muted;
+      if (!sfx.muted) sfx.unlock();
+      e.target.textContent = sfx.muted ? 'Звук: ВЫКЛ' : 'Звук: ВКЛ';
+    };
+    document.getElementById('pauseBtn').onclick = () => {
+      sfx.unlock();
+      if (status === 'PLAYING') status = 'PAUSED';
+      else if (status === 'PAUSED') { status = 'PLAYING'; canvas.focus(); }
+      syncUI();
+    };
+    document.getElementById('overlayBtn').onclick = () => {
+      sfx.start();
+      if (status === 'CLEAR') loadLevel(levelIdx + 1, true);
+      else if (status === 'PAUSED') { status = 'PLAYING'; syncUI(); }
+      else { score = 0; lives = 3; loadLevel(status === 'TITLE' ? levelIdx : 0, true); }
+      canvas.focus();
+    };
+
+    const setKey = (code, v) => {
+      if (code === 'ArrowLeft' || code === 'KeyA') input.left = v;
+      if (code === 'ArrowRight' || code === 'KeyD') input.right = v;
+      if (code === 'ArrowUp' || code === 'KeyW') input.up = v;
+      if (code === 'ArrowDown' || code === 'KeyS') input.down = v;
+      if (code === 'KeyZ' || code === 'KeyQ') input.digLeft = v;
+      if (code === 'KeyX' || code === 'KeyE') input.digRight = v;
+    };
+    window.addEventListener('keydown', (e) => {
+      sfx.unlock();
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+      if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) { document.getElementById('pauseBtn').click(); return; }
+      if (e.code === 'KeyR' && !e.repeat && status === 'PLAYING') { loadLevel(levelIdx, true); return; }
+      if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat && status !== 'PLAYING') {
+        e.preventDefault(); document.getElementById('overlayBtn').click(); return;
+      }
+      setKey(e.code, true);
+    });
+    window.addEventListener('keyup', (e) => setKey(e.code, false));
+    window.addEventListener('blur', () => { Object.keys(input).forEach(k => input[k] = false); });
+
+    document.querySelectorAll('[data-key]').forEach((btn) => {
+      const k = btn.dataset.key;
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); sfx.unlock(); input[k] = true; });
+      btn.addEventListener('pointerup', () => { input[k] = false; });
+      btn.addEventListener('pointerleave', () => { input[k] = false; });
+      btn.addEventListener('pointercancel', () => { input[k] = false; });
+    });
+
+    loadLevel(0, false);
+    let last = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      update(dt);
+      draw(now / 1000);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
